@@ -6,6 +6,7 @@
 
 import os
 import io
+import csv
 import pickle
 from pathlib import Path
 from collections import defaultdict
@@ -29,7 +30,7 @@ def main():
 
     api_service_name = "youtube"
     api_version = "v3"
-    client_secrets_file = "client_secret_675983259930-v8nltr8b398b85mp4dbafueul7ub7s6f.apps.googleusercontent.com.json"
+    client_secrets_file = "../client_secret_675983259930-v8nltr8b398b85mp4dbafueul7ub7s6f.apps.googleusercontent.com.json"
 
     # Get credentials and create an API client
     flow = google_auth_oauthlib.flow.InstalledAppFlow.from_client_secrets_file(
@@ -125,13 +126,8 @@ def main():
     # Values: list of video ids
     privacy_videos = defaultdict(list)
 
+    # print num vids for each company
     count = 0
-    # apple_vids = 0
-    # whatsapp_vids = 0
-    # duckduckgo_vids = 0
-    # google_vids = 0
-    # brave_vids = 0
-    # nord_vpn = 0
     for k, v in channel_query.items():
         c_name = k
         for i in v["id"]:
@@ -176,7 +172,6 @@ def main():
                     video_query[v]["likeCount"].append(response["items"][0]["statistics"]["likeCount"])
                 except KeyError:
                     print("video", v, "has no viewCount")
-        # print(video_query)
         file = open("video_query.pickle", "wb")
         pickle.dump(video_query, file)
         file.close()
@@ -185,39 +180,18 @@ def main():
         video_query = pickle.load(file)
         print("loaded video_query!")
         file.close()
-    
-    
-    # # ----------------------- Caption ID Query -----------------------
-    # # Key: video ID
-    # # Value: [[captionId1, status1], [captionId2, status2], ... ]
-    # path = Path('./caption_id_query.pickle')
-    # if not path.is_file():
-    #     caption_id_query = defaultdict(list)
-    #     for company, video_list in privacy_videos.items():
-    #         for v in video_list:  
-    #             request = youtube.captions().list(
-    #                 part = "snippet, id",
-    #                 videoId = v
-    #             )
-    #             response = request.execute()
-    #             for item in response["items"]:
-    #                 if item["snippet"]["language"] == "en":
-    #                     caption_id_query[v] = [item["id"], item["snippet"]["status"]]
-    #     # print(caption_id_query)
-    #     file = open("caption_id_query.pickle", "wb")
-    #     pickle.dump(caption_id_query, file)
-    #     file.close()
-    # else:
-    #     file = open("caption_id_query.pickle", "rb")
-    #     caption_id_query = pickle.load(file)
-    #     print("loaded caption_id_query!")
-    #     file.close()
+
 
     # ----------------------- Transcript Query -----------------------
-    path = Path('./transcripts.pickle')
+    subtract_videos = {"BBKOj7E9SfI", "vT0QRd937KM","X4K4JsBXWP8", "lWs3I8zieds", "fiXaHv_9rmQ"}
+    for k, v in privacy_videos.items():
+        privacy_videos[k] = list(set(privacy_videos[k]) - subtract_videos)
+    
+
+    path = Path('./transcript_query.pickle')
     if not path.is_file():
         transcript_query = defaultdict(str)
-        for company, video_list in privacy_videos.items():
+        for _, video_list in privacy_videos.items():
             for v in video_list:
                 t_dict = YouTubeTranscriptApi.get_transcript(v, languages=['en'])
                 words = []
@@ -226,7 +200,6 @@ def main():
                 full_transcript = ' '.join(words)
                 formatted = full_transcript.replace('\n', ' ').replace("\'", "'").replace("\xa0", "")
                 transcript_query[v] = formatted
-        # print(transcript_query)
         file = open("transcript_query.pickle", "wb")
         pickle.dump(transcript_query, file)
         file.close()
@@ -236,7 +209,37 @@ def main():
         print("loaded transcript_query!")
         file.close()
         
-    print(transcript_query)
+    # video_query
+    # Keys: video IDs
+    #     -> Keys: 
+    #             - title        = [title]
+    #             - description  = [desc]
+    #             - tags         = [tag1, tag2, ... ]
+    #             - viewCount    = [views]
+    #             - likeCount    = [likes]
+    
+    # ------------------ CSV ------------------
+
+    # open the file in the write mode
+    file = open('yt_privacy_videos', 'w')
+    
+    header = ["Video ID", "Title", "Description", "Tags", "Views", "Likes"]
+
+    # create the csv writer
+    writer = csv.writer(file)
+
+    # write a header to the csv file
+    writer.writerow(header)
+    
+    # Logic for looping and writing video id rows
+    for v_id, d in video_query.items():
+        row_data = [v_id]
+        for k, v in d.items():
+            row_data.append(v)
+        writer.writerow(row_data)
+        
+    # close the file
+    file.close()
 
 if __name__ == "__main__":
     main()
